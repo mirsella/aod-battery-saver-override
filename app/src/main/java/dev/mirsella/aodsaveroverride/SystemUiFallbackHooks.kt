@@ -4,7 +4,6 @@ import android.util.Log
 import dev.mirsella.aodsaveroverride.compat.VersionMap
 import dev.mirsella.aodsaveroverride.util.LogOnce
 import io.github.libxposed.api.XposedInterface
-import io.github.libxposed.api.XposedInterface.AfterHookCallback
 import java.lang.reflect.Field
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -78,7 +77,9 @@ object SystemUiFallbackHooks {
         aodPowerSaveField = aodField
 
         runCatching {
-            module.hook(setPowerSaveMethod, XposedInterface.PRIORITY_DEFAULT, BatteryControllerHooker::class.java)
+            module.hook(setPowerSaveMethod)
+                .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                .intercept(BatteryControllerHooker(aodField))
             module.emitLog(Log.INFO, "Installed optional SystemUI fallback hook")
         }.onFailure {
             installed.set(false)
@@ -93,11 +94,6 @@ object SystemUiFallbackHooks {
         }
     }
 
-    @JvmStatic
-    private fun handleAfterHook(callback: AfterHookCallback) {
-        forceAodPowerSaveDisabled(aodPowerSaveField, callback.thisObject)
-    }
-
     private fun forceAodPowerSaveDisabled(field: Field?, instance: Any?) {
         if (field == null || instance == null) {
             return
@@ -107,12 +103,13 @@ object SystemUiFallbackHooks {
         }
     }
 
-    private class BatteryControllerHooker : XposedInterface.Hooker {
-        companion object {
-            @JvmStatic
-            fun after(callback: AfterHookCallback) {
-                handleAfterHook(callback)
-            }
+    private class BatteryControllerHooker(
+        private val field: Field,
+    ) : XposedInterface.Hooker {
+        override fun intercept(chain: XposedInterface.Chain): Any? {
+            val result = chain.proceed()
+            forceAodPowerSaveDisabled(field, chain.thisObject)
+            return result
         }
     }
 }

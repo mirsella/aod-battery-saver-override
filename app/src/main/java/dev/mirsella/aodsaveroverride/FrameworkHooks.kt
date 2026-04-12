@@ -4,7 +4,6 @@ import android.util.Log
 import dev.mirsella.aodsaveroverride.compat.VersionMap
 import dev.mirsella.aodsaveroverride.util.LogOnce
 import io.github.libxposed.api.XposedInterface
-import io.github.libxposed.api.XposedInterface.AfterHookCallback
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -12,10 +11,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 object FrameworkHooks {
     private val installed = AtomicBoolean(false)
-    @Volatile
-    private var activeProfile: ReflectionProfile? = null
-    @Volatile
-    private var activeModule: ModuleEntry? = null
 
     fun install(module: ModuleEntry, classLoader: ClassLoader, versionInfo: VersionMap.VersionInfo) {
         if (!installed.compareAndSet(false, true)) {
@@ -34,9 +29,6 @@ object FrameworkHooks {
             return
         }
 
-        activeProfile = reflectionProfile
-        activeModule = module
-
         runCatching {
             module.deoptimize(reflectionProfile.policyMethod)
         }.onFailure {
@@ -50,12 +42,12 @@ object FrameworkHooks {
         }
 
         runCatching {
-            module.hook(reflectionProfile.policyMethod, XposedInterface.PRIORITY_DEFAULT, BatterySaverPolicyHooker::class.java)
+            module.hook(reflectionProfile.policyMethod)
+                .setPriority(XposedInterface.PRIORITY_DEFAULT)
+                .intercept(BatterySaverPolicyHooker(module, reflectionProfile))
             module.emitLog(Log.INFO, "Installed framework hook for AOD Battery Saver override")
         }.onFailure {
             installed.set(false)
-            activeProfile = null
-            activeModule = null
             LogOnce.log(
                 module::emitLog,
                 Log.ERROR,
@@ -150,34 +142,6 @@ object FrameworkHooks {
         }.getOrNull()
     }
 
-    @JvmStatic
-    private fun handleAfterHook(callback: AfterHookCallback) {
-        val reflectionProfile = activeProfile ?: return
-        val module = activeModule ?: return
-        val args = callback.args
-        val serviceType = args.firstOrNull() as? Int ?: return
-        if (serviceType != reflectionProfile.aodServiceType) {
-            return
-        }
-
-        val original = callback.result
-        if (original == null || !reflectionProfile.powerSaveStateClass.isInstance(original)) {
-            LogOnce.log(
-                module::emitLog,
-                Log.WARN,
-                "framework-null-state",
-                "Framework hook received unexpected AOD state result; leaving original value untouched",
-            )
-            return
-        }
-
-        if (!reflectionProfile.batterySaverEnabledField.getBoolean(original)) {
-            return
-        }
-
-        callback.setResult(reflectionProfile.copyWithBatterySaverDisabled(original))
-    }
-
     private data class ReflectionProfile(
         val policyMethod: Method,
         val powerSaveStateClass: Class<*>,
@@ -206,12 +170,33 @@ object FrameworkHooks {
         }
     }
 
-    private class BatterySaverPolicyHooker : XposedInterface.Hooker {
-        companion object {
-            @JvmStatic
-            fun after(callback: AfterHookCallback) {
-                handleAfterHook(callback)
+    private class BatterySaverPolicyHooker(
+        private val module: ModuleEntry,
+        private val reflectionProfile: ReflectionProfile,
+    ) : XposedInterface.Hooker {
+        override fun intercept(chain: XposedInterface.Chain): Any? {
+            val serviceType = chain.getArgs().firstOrNull() as? Int ?: return chain.proceed()
+            val original = chain.proceed()
+
+            if (serviceType != reflectionProfile.aodServiceType) {
+                return original
             }
+
+            if (original == null || !reflectionProfile.powerSaveStateClass.isInstance(original)) {
+                LogOnce.log(
+                    module::emitLog,
+                    Log.WARN,
+                    "framework-null-state",
+                    "Framework hook received unexpected AOD state result; leaving original value untouched",
+                )
+                return original
+            }
+
+            if (!reflectionProfile.batterySaverEnabledField.getBoolean(original)) {
+                return original
+            }
+
+            return reflectionProfile.copyWithBatterySaverDisabled(original)
         }
     }
 }

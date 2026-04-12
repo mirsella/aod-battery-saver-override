@@ -3,27 +3,23 @@ package dev.mirsella.aodsaveroverride
 import android.util.Log
 import dev.mirsella.aodsaveroverride.compat.VersionMap
 import dev.mirsella.aodsaveroverride.util.LogOnce
-import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 
-class ModuleEntry(
-    base: XposedInterface,
-    private val moduleLoadedParam: XposedModuleInterface.ModuleLoadedParam,
-) : XposedModule(base, moduleLoadedParam) {
+class ModuleEntry : XposedModule() {
     @Volatile
     private var config: Config = Config.load()
 
     @Volatile
     private var versionInfo: VersionMap.VersionInfo? = null
 
-    init {
+    override fun onModuleLoaded(param: XposedModuleInterface.ModuleLoadedParam) {
         config = Config.load()
         if (!config.enabled) {
             LogOnce.log(::emitLog, Log.INFO, "module-disabled", "Module disabled by config")
-        } else if (!moduleLoadedParam.isSystemServer) {
+        } else if (!param.isSystemServer) {
             if (config.verboseLogging) {
-                emitLog(Log.DEBUG, "Ignoring non-system process ${moduleLoadedParam.processName}")
+                emitLog(Log.DEBUG, "Ignoring non-system process ${param.processName}")
             }
         } else {
             versionInfo = VersionMap.resolveCurrent()
@@ -46,7 +42,7 @@ class ModuleEntry(
         }
     }
 
-    override fun onSystemServerLoaded(param: XposedModuleInterface.SystemServerLoadedParam) {
+    override fun onSystemServerStarting(param: XposedModuleInterface.SystemServerStartingParam) {
         if (!config.enabled || !config.enableFrameworkHook) {
             return
         }
@@ -73,18 +69,10 @@ class ModuleEntry(
     }
 
     internal fun emitLog(priority: Int, message: String, throwable: Throwable? = null) {
-        val level = when (priority) {
-            Log.ERROR -> "E"
-            Log.WARN -> "W"
-            Log.INFO -> "I"
-            Log.DEBUG -> "D"
-            else -> priority.toString()
-        }
-        val formatted = "[$level] $TAG: $message"
         if (throwable == null) {
-            log(formatted)
+            log(priority, TAG, message)
         } else {
-            log(formatted, throwable)
+            log(priority, TAG, message, throwable)
         }
     }
 

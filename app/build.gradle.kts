@@ -13,8 +13,8 @@ android {
         applicationId = "dev.mirsella.aodsaveroverride"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
     }
 
     buildTypes {
@@ -51,5 +51,5 @@ kotlin {
 }
 
 dependencies {
-    compileOnly(files("libs/libxposed-api-100.aar"))
+    compileOnly("io.github.libxposed:api:101.0.1")
 }
