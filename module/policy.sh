@@ -6,7 +6,7 @@ POLICY_KEY=battery_saver_constants
 
 say() {
     printf '%s\n' "$*"
-    log -t AodSaverOverride "$*" || :
+    /system/bin/log -t AodSaverOverride "$*" 2>/dev/null || log -t AodSaverOverride "$*" 2>/dev/null || :
 }
 
 wait_for_boot() {
