@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Require modern Xposed API 102 and build against `io.github.libxposed:api:102.0.0`
+
 ## 0.1.1
 
 - Bump modern LSPosed module metadata to API 101

@@ -2,7 +2,7 @@
 
 LSPosed module that keeps Always On Display available while Battery Saver is enabled.
 
-Current release target: modern LSPosed API 101.
+Targets modern Xposed API 102 and requires a framework with API 102 support.
 
 ## How It Works
 
