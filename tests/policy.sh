@@ -8,10 +8,12 @@ STATE_DIR=$work/state
 . ./module/policy.sh
 
 # Model the persistent SettingsProvider across command substitutions.
+fail_put=
 settings() {
     case "$1" in
         get) if [ -f "$work/setting" ]; then cat "$work/setting"; else printf 'null\n'; fi ;;
-        put) printf '%s\n' "$4" > "$work/setting" ;;
+        put) [ -z "$fail_put" ] || return 1
+            printf '%s\n' "$4" > "$work/setting" ;;
         delete) rm -f "$work/setting" ;;
         *) return 1 ;;
     esac
@@ -98,15 +100,10 @@ expect 'disable_aod=true'
 # A failed write must not report success or lose the original policy.
 reset
 settings put global battery_saver_constants 'disable_aod=true'
-settings() {
-    case "$1" in
-        get) cat "$work/setting" ;;
-        put) return 1 ;;
-        *) return 1 ;;
-    esac
-}
+fail_put=1
 if apply_policy >/dev/null; then
     fail 'Failed settings write was accepted'
 fi
+fail_put=
 [ "$(cat "$STATE_DIR/original")" = 'disable_aod=true' ]
 printf 'Policy tests passed.\n'
