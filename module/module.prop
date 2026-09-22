@@ -1,0 +1,6 @@
+id=aod-battery-saver-override
+name=AOD Battery Saver Override
+version=0.2.0
+versionCode=5
+author=mirsella
+description=Keep Always On Display available during Battery Saver. Action restores the previous AOD policy and disables the module.

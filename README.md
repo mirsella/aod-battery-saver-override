@@ -1,78 +1,49 @@
 # AOD Battery Saver Override
 
-LSPosed module that keeps Always On Display available while Battery Saver is enabled.
+A script-only KernelSU / Magisk module that keeps Always On Display available while Battery Saver is enabled.
 
-Targets modern Xposed API 102 and requires a framework with API 102 support.
+## How it works
 
-## How It Works
+After boot, the module sets `disable_aod=false` inside Android's global `battery_saver_constants` setting. It preserves the other policy entries and leaves Battery Saver enabled. It does not turn AOD on: enable AOD in your phone's settings.
 
-The module does not disable Battery Saver globally. Instead, it hooks the framework code that returns `PowerSaveState` and only rewrites the AOD-related answer so Android behaves as if Battery Saver is not blocking Always On Display.
+No Zygisk, LSPosed, APK, system mounts, or resident process is required. The shared `service.sh` entry point waits for boot completion, applies the policy once, and exits. It supports KernelSU, KernelSU Next, and Magisk.
 
-The main path lives in the framework hook. There is also a narrower SystemUI fallback hook in the project for cases where the framework hook is not enough.
-
-The compatibility map supports Android 16 QPR2 (SDK 36) and Android 17 (SDK 37). The module checks framework signatures before installing the hook and logs warnings for unsupported SDKs or missing signatures.
-
-## Build
-
-Debug builds need no release credentials:
-
-```bash
-./gradlew assembleDebug
-```
-
-### Signed releases with SecretSpec
-
-Install `just`, SecretSpec, and Proton Pass CLI, then sign in with `pass-cli login`. Configure the Android SDK through `ANDROID_HOME` or Android Studio's `local.properties`.
-
-```bash
-just build-release
-```
-
-`secretspec.toml` resolves these required secrets through the `protonpass` provider, which uses `pass-cli`. They are note items in the `secretspec` vault:
-
-- `aod-battery-saver-override/default/RELEASE_KEYSTORE_BASE64`: the base64-encoded release PKCS12 keystore.
-- `aod-battery-saver-override/default/RELEASE_KEYSTORE_PASSWORD`: the password for both the keystore and its `aod-saver-override` key.
-
-The release recipe decodes the key into a private temporary directory under `dist/`, signs the APK, and removes the temporary key when the build exits. It uses the same signing key as version 0.1.2. The original backup is in the Personal vault under `AOD Battery Saver Override release signing`.
-
-To build both variants:
-
-```bash
-just build
-```
-
-For Gradle directly, provide an existing keystore:
-
-```bash
-RELEASE_KEYSTORE_PATH=/path/to/release.p12 \
-RELEASE_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
-./gradlew assembleRelease
-```
-
-Without these credentials, Gradle produces an unsigned release APK.
-
-## Artifacts
-
-- `dist/aod-battery-saver-override-debug.apk`
-- `dist/aod-battery-saver-override-release.apk`
+The ROM must honor the AOSP `disable_aod` policy. Tested on a POCO F5 running Android 17 (SDK 37): AOD remained available through Battery Saver toggles and entered the dozing state, while location, brightness, and sound restrictions stayed active. OEM or runtime policies can override this setting. The module reapplies it at boot, not continuously.
 
 ## Install
 
-Install the generated APK, enable the module in LSPosed, then reboot if needed.
+1. Enable AOD in Android settings.
+2. Install the module ZIP from KernelSU or Magisk's **Modules** page.
+3. Reboot.
 
-Version 0.1.2 uses a new release signing key because the previous debug key could not be recovered. To upgrade from 0.1.1, uninstall the old APK first, install 0.1.2, enable the module again, and reboot. Later releases use the same dedicated key and can update 0.1.2 directly.
+Install through the root manager, not recovery. No KernelSU mounting metamodule is needed.
 
-## Notes
+### Migrating from 0.1.x
 
-- The main entry point is `ModuleEntry.kt`.
-- Framework-level behavior is implemented in `FrameworkHooks.kt`.
-- Compatibility mapping is tracked in `compat/VersionMap.kt`.
-- The fallback hook is not the primary path and exists for edge cases.
+Disable or uninstall the old `dev.mirsella.aodsaveroverride` Xposed APK, install this ZIP, and reboot to unload its hook. Version 0.2.0 replaces the APK architecture entirely. Keep LSPosed or Zygisk installed if other modules need them.
 
-## GitHub Actions
+If you previously set `disable_aod=false` manually, restore your original AOD policy before the first module boot. Otherwise, the module correctly records `false` as the value to restore later.
 
-Signed builds use the repository secrets `RELEASE_KEYSTORE_BASE64` and `RELEASE_KEYSTORE_PASSWORD`. The first contains the base64-encoded release keystore. Keep a separate backup of the keystore and password; GitHub secrets cannot be downloaded later.
+## Restore or uninstall
 
-Download the latest build artifacts from the Actions tab:
+Use the module's **Action** button to restore the previous AOD policy and disable the module immediately. Re-enable it in the manager and reboot to apply again.
 
-- `https://github.com/mirsella/aod-battery-saver-override/actions`
+Simply switching the module off prevents its boot script from running but does not undo the persistent Android setting. Use **Action** when you want to undo it.
+
+Uninstall also restores the previous AOD entry, preserving changes to other policy entries. If another writer has already changed the AOD entry away from the module's value, it leaves that change alone. When removal happens early in boot, a short-lived background task waits for Android before restoring it; it times out after six minutes.
+
+The original policy is saved once in `/data/adb/aod-battery-saver-override/original`, outside the module directory so updates retain it. Successful uninstall removes this backup. If Android never finishes booting or restoration fails, the backup remains for recovery. Logs use the `AodSaverOverride` logcat tag.
+
+## Build and check
+
+Building needs a POSIX shell and `zip`. Checks also need ShellCheck. No SDK, Gradle, signing key, or secrets are required.
+
+```sh
+sh tests/policy.sh
+shellcheck -x -s sh module/*.sh scripts/*.sh tests/*.sh
+sh scripts/build.sh
+```
+
+Or use `just check` and `just build`.
+
+Output: `dist/aod-battery-saver-override-0.2.0.zip`. GitHub Actions checks the scripts and uploads the same ZIP format as an artifact.

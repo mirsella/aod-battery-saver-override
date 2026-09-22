@@ -1,12 +1,1 @@
-/.gradle/
-/build/
-/app/build/
 /dist/
-/local.properties
-/.idea/
-/.kotlin/
-*.iml
-captures/
-*.keystore
-*.jks
-*.p12

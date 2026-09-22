@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Replace the Xposed APK with a script-only KernelSU / Magisk module.
+- Merge `disable_aod=false` into the Battery Saver policy after boot, preserving other settings.
+- Save the original AOD policy across updates and restore it on Action or uninstall.
+- Remove Kotlin hooks, Gradle, Android SDK dependencies, APK signing, and SecretSpec configuration.
+- Build a module ZIP with shell tools and test policy merging and restoration in CI.
+
 ## 0.1.3
 
 - Support Android 17 (SDK 37). Earlier versions skipped the framework hook on SDK 37, leaving AOD blocked by Battery Saver.
