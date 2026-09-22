@@ -46,4 +46,4 @@ sh scripts/build.sh
 
 Or use `just check` and `just build`.
 
-Output: `dist/aod-battery-saver-override-0.2.0.zip`. GitHub Actions checks the scripts and uploads the same ZIP format as an artifact.
+Output: `dist/aod-battery-saver-override-0.2.0.zip`. GitHub Actions runs the same checks and uploads the ZIP as an artifact.
