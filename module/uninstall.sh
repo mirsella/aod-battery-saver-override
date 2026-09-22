@@ -5,11 +5,10 @@ MODDIR=${0%/*}
 # shellcheck source=module/policy.sh
 . "$MODDIR/policy.sh"
 if [ "$(getprop sys.boot_completed)" = 1 ]; then
-    restore_policy
-    rm -rf "$STATE_DIR"
+    restore_and_clean
 else
     # Uninstall can run before SettingsProvider exists. Never block boot.
     (
-        wait_for_boot && restore_policy && rm -rf "$STATE_DIR"
+        wait_for_boot && restore_and_clean
     ) </dev/null >/dev/null 2>&1 &
 fi

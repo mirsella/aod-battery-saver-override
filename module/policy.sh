@@ -1,7 +1,7 @@
 #!/system/bin/sh
 
-# Outside the module directory so upgrades and deferred uninstall retain it.
-STATE_DIR=/data/adb/aod-battery-saver-override
+# STATE_DIR survives module updates and deferred uninstall; tests override it.
+STATE_DIR=${STATE_DIR:-/data/adb/aod-battery-saver-override}
 POLICY_KEY=battery_saver_constants
 
 say() {
@@ -21,21 +21,25 @@ wait_for_boot() {
     done
 }
 
-# Android uses the last occurrence of a duplicate key.
-aod_entry() {
+# Effective disable_aod value: true, false, or empty when absent.
+# Android resolves duplicate keys with last-wins.
+aod_value() {
     awk -F, '{
         for (i = 1; i <= NF; i++) {
             key = $i; sub(/=.*/, "", key); gsub(/^[ \t]+|[ \t]+$/, "", key)
-            if (key == "disable_aod") entry = $i
+            if (key == "disable_aod") {
+                value = $i; sub(/^[^=]*=/, "", value); gsub(/^[ \t]+|[ \t]+$/, "", value)
+            }
         }
-        print entry
+        print value
     }'
 }
 
-# Replace only the AOD entry, preserving all other entries and their order.
+# Rewrite only the AOD entry, preserving other entries and their order.
+# An empty replacement removes the entry; "null" input means no stored policy.
 merge_aod() {
     awk -v replacement="$1" -F, '
-        function emit(value) { result = result separator value; separator = "," }
+        function emit(entry) { result = result separator entry; separator = "," }
         $0 != "null" {
             for (i = 1; i <= NF; i++) {
                 key = $i; sub(/=.*/, "", key); gsub(/^[ \t]+|[ \t]+$/, "", key)
@@ -83,16 +87,28 @@ restore_policy() {
     fi
     original=$(cat "$STATE_DIR/original") || return 1
     current=$(settings get global "$POLICY_KEY") || return 1
-    entry=$(printf '%s\n' "$current" | aod_entry) || return 1
-    if [ "$entry" != disable_aod=false ]; then
+    current_value=$(printf '%s\n' "$current" | aod_value) || return 1
+    previous=$(printf '%s\n' "$original" | aod_value) || return 1
+    if [ "$current_value" = "$previous" ]; then
+        say "AOD policy already matches the saved policy."
+        return 0
+    fi
+    if [ "$current_value" != false ]; then
         say "AOD policy changed independently; leaving it untouched."
         return 0
     fi
-    previous=$(printf '%s\n' "$original" | aod_entry) || return 1
-    restored=$(printf '%s\n' "$current" | merge_aod "$previous") || return 1
+    case "$previous" in
+        true|false) replacement="disable_aod=$previous" ;;
+        *) replacement="" ;;
+    esac
+    restored=$(printf '%s\n' "$current" | merge_aod "$replacement") || return 1
     if [ -z "$restored" ] && [ "$original" = null ]; then
         restored=null
     fi
     write_policy "$restored" || return 1
     say "Previous AOD policy restored; other Battery Saver settings preserved."
+}
+
+restore_and_clean() {
+    restore_policy && rm -rf "$STATE_DIR"
 }

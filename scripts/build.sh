@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
-version=$(awk -F= '$1 == "version" { print $2 }' module/module.prop)
+version=$(awk -F= '$1 == "version" { print $2; exit }' module/module.prop)
+[ -n "$version" ] || { printf 'version missing in module/module.prop\n' >&2; exit 1; }
 mkdir -p dist
 archive="dist/aod-battery-saver-override-$version.zip"
 rm -f "$archive"
