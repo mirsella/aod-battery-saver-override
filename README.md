@@ -20,7 +20,7 @@ Debug builds need no release credentials:
 ./gradlew assembleDebug
 ```
 
-For signed release builds, set `RELEASE_KEYSTORE_PATH` to the release PKCS12 keystore and `RELEASE_KEYSTORE_PASSWORD` to its password. The key alias is `aod-saver-override`, and the key uses the same password as the keystore. Release builds require these credentials and fail if they are missing.
+For signed release builds, set `RELEASE_KEYSTORE_PATH` to the release PKCS12 keystore and `RELEASE_KEYSTORE_PASSWORD` to its password. The key alias is `aod-saver-override`, and the key uses the same password as the keystore. Without these credentials, Gradle produces an unsigned release APK.
 
 To build both variants:
 
