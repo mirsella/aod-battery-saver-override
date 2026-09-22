@@ -13,6 +13,15 @@ object VersionMap {
             aodServiceType = 14,
             allowPixelLikeFallback = false,
         ),
+        SupportProfile(
+            sdkInt = 37,
+            releaseBranch = "android17-release",
+            policyClassName = "com.android.server.power.batterysaver.BatterySaverPolicy",
+            policyMethodName = "getBatterySaverPolicy",
+            powerSaveStateClassName = "android.os.PowerSaveState",
+            aodServiceType = 14,
+            allowPixelLikeFallback = false,
+        ),
     )
 
     fun resolveCurrent(): VersionInfo {

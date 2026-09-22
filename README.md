@@ -10,7 +10,7 @@ The module does not disable Battery Saver globally. Instead, it hooks the framew
 
 The main path lives in the framework hook. There is also a narrower SystemUI fallback hook in the project for cases where the framework hook is not enough.
 
-Compatibility is intentionally explicit: the project currently maps support around SDK 36 / Android 16 QPR2 style internals and logs warnings when signatures do not match expectations.
+The compatibility map supports Android 16 QPR2 (SDK 36) and Android 17 (SDK 37). The module checks framework signatures before installing the hook and logs warnings for unsupported SDKs or missing signatures.
 
 ## Build
 
@@ -20,7 +20,20 @@ Debug builds need no release credentials:
 ./gradlew assembleDebug
 ```
 
-For signed release builds, set `RELEASE_KEYSTORE_PATH` to the release PKCS12 keystore and `RELEASE_KEYSTORE_PASSWORD` to its password. The key alias is `aod-saver-override`, and the key uses the same password as the keystore. Without these credentials, Gradle produces an unsigned release APK.
+### Signed releases with SecretSpec
+
+Install `just`, SecretSpec, and Proton Pass CLI, then sign in with `pass-cli login`. Configure the Android SDK through `ANDROID_HOME` or Android Studio's `local.properties`.
+
+```bash
+just build-release
+```
+
+`secretspec.toml` resolves these required secrets through the `protonpass` provider, which uses `pass-cli`. They are note items in the `secretspec` vault:
+
+- `aod-battery-saver-override/default/RELEASE_KEYSTORE_BASE64`: the base64-encoded release PKCS12 keystore.
+- `aod-battery-saver-override/default/RELEASE_KEYSTORE_PASSWORD`: the password for both the keystore and its `aod-saver-override` key.
+
+The release recipe decodes the key into a private temporary directory under `dist/`, signs the APK, and removes the temporary key when the build exits. It uses the same signing key as version 0.1.2. The original backup is in the Personal vault under `AOD Battery Saver Override release signing`.
 
 To build both variants:
 
@@ -28,11 +41,15 @@ To build both variants:
 just build
 ```
 
-If you prefer Gradle directly:
+For Gradle directly, provide an existing keystore:
 
 ```bash
-./gradlew assembleDebug assembleRelease
+RELEASE_KEYSTORE_PATH=/path/to/release.p12 \
+RELEASE_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" \
+./gradlew assembleRelease
 ```
+
+Without these credentials, Gradle produces an unsigned release APK.
 
 ## Artifacts
 

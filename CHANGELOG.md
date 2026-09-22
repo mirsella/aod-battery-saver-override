@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- Support Android 17 (SDK 37). Earlier versions skipped the framework hook on SDK 37, leaving AOD blocked by Battery Saver.
+- Add SecretSpec and Proton Pass integration for local signed release builds.
+
 ## 0.1.2
 
 - Require modern Xposed API 102 and build against `io.github.libxposed:api:102.0.0`
