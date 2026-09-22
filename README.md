@@ -14,6 +14,16 @@ Compatibility is intentionally explicit: the project currently maps support arou
 
 ## Build
 
+Debug builds need no release credentials:
+
+```bash
+./gradlew assembleDebug
+```
+
+For signed release builds, set `RELEASE_KEYSTORE_PATH` to the release PKCS12 keystore and `RELEASE_KEYSTORE_PASSWORD` to its password. The key alias is `aod-saver-override`, and the key uses the same password as the keystore. Release builds require these credentials and fail if they are missing.
+
+To build both variants:
+
 ```bash
 just build
 ```
@@ -33,6 +43,8 @@ If you prefer Gradle directly:
 
 Install the generated APK, enable the module in LSPosed, then reboot if needed.
 
+Version 0.1.2 uses a new release signing key because the previous debug key could not be recovered. To upgrade from 0.1.1, uninstall the old APK first, install 0.1.2, enable the module again, and reboot. Later releases use the same dedicated key and can update 0.1.2 directly.
+
 ## Notes
 
 - The main entry point is `ModuleEntry.kt`.
@@ -41,6 +53,8 @@ Install the generated APK, enable the module in LSPosed, then reboot if needed.
 - The fallback hook is not the primary path and exists for edge cases.
 
 ## GitHub Actions
+
+Signed builds use the repository secrets `RELEASE_KEYSTORE_BASE64` and `RELEASE_KEYSTORE_PASSWORD`. The first contains the base64-encoded release keystore. Keep a separate backup of the keystore and password; GitHub secrets cannot be downloaded later.
 
 Download the latest build artifacts from the Actions tab:
 

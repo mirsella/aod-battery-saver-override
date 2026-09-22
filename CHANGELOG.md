@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.2
 
 - Require modern Xposed API 102 and build against `io.github.libxposed:api:102.0.0`
+- Use a dedicated release signing key for local and CI builds. The previous debug signing key could not be recovered, so upgrading from 0.1.1 requires uninstalling the old APK and installing 0.1.2, then enabling the module again.
 
 ## 0.1.1
 

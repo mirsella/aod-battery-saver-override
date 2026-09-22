@@ -7,3 +7,6 @@
 /.kotlin/
 *.iml
 captures/
+*.keystore
+*.jks
+*.p12

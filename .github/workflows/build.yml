@@ -23,12 +23,27 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      - name: Restore release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          test -n "$KEYSTORE_BASE64"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/aod-release.p12"
+
       - name: Build debug and release APKs
+        env:
+          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/aod-release.p12
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
         run: |
           ./gradlew assembleDebug assembleRelease
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk dist/aod-battery-saver-override-debug.apk
           cp app/build/outputs/apk/release/app-release.apk dist/aod-battery-saver-override-release.apk
+
+      - name: Remove release signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/aod-release.p12"
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v6
