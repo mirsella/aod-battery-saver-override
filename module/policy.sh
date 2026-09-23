@@ -3,6 +3,8 @@
 # STATE_DIR survives module updates and deferred uninstall; tests override it.
 STATE_DIR=${STATE_DIR:-/data/adb/aod-battery-saver-override}
 POLICY_KEY=battery_saver_constants
+CONFIG_NAMESPACE=battery_saver
+CONFIG_KEY=disable_aod
 
 say() {
     printf '%s\n' "$*"
@@ -67,16 +69,84 @@ write_policy() {
     fi
 }
 
+read_override() {
+    overrides=$(device_config list_local_overrides) || return 1
+    for entry in $overrides; do
+        case "$entry" in
+            "$CONFIG_NAMESPACE/$CONFIG_KEY="*)
+                printf '%s\n' "${entry#*=}"
+                return 0
+                ;;
+        esac
+    done
+    printf 'null\n'
+}
+
+write_override() {
+    if [ "$1" = null ]; then
+        device_config clear_override "$CONFIG_NAMESPACE" "$CONFIG_KEY" || return 1
+    else
+        device_config override "$CONFIG_NAMESPACE" "$CONFIG_KEY" "$1" || return 1
+    fi
+    actual=$(read_override) || return 1
+    if [ "$actual" != "$1" ]; then
+        say "Battery Saver DeviceConfig override did not stick."
+        return 1
+    fi
+}
+
+read_raw_config() {
+    active_override=$(read_override) || return 1
+    if [ "$active_override" = null ]; then
+        device_config get "$CONFIG_NAMESPACE" "$CONFIG_KEY"
+        return
+    fi
+    device_config clear_override "$CONFIG_NAMESPACE" "$CONFIG_KEY" || return 1
+    raw=$(device_config get "$CONFIG_NAMESPACE" "$CONFIG_KEY")
+    result=$?
+    device_config override "$CONFIG_NAMESPACE" "$CONFIG_KEY" "$active_override" || return 1
+    [ "$result" -eq 0 ] || return 1
+    printf '%s\n' "$raw"
+}
+
+write_raw_config() {
+    if [ "$1" = null ]; then
+        device_config delete "$CONFIG_NAMESPACE" "$CONFIG_KEY" >/dev/null || return 1
+    else
+        device_config put "$CONFIG_NAMESPACE" "$CONFIG_KEY" "$1" || return 1
+    fi
+    actual=$(read_raw_config) || return 1
+    if [ "$actual" != "$1" ]; then
+        say "Battery Saver DeviceConfig value did not stick."
+        return 1
+    fi
+}
+
+save_once() {
+    [ -f "$STATE_DIR/$1" ] && return 0
+    printf '%s\n' "$2" > "$STATE_DIR/$1.tmp" || return 1
+    mv "$STATE_DIR/$1.tmp" "$STATE_DIR/$1"
+}
+
 apply_policy() {
     current=$(settings get global "$POLICY_KEY") || return 1
+    config_override=$(read_override) || return 1
     umask 077
     mkdir -p "$STATE_DIR" || return 1
-    if [ ! -f "$STATE_DIR/original" ]; then
-        printf '%s\n' "$current" > "$STATE_DIR/original.tmp" || return 1
-        mv "$STATE_DIR/original.tmp" "$STATE_DIR/original" || return 1
+    save_once original "$current" || return 1
+    save_once device_config_override_original "$config_override" || return 1
+    if [ ! -f "$STATE_DIR/device_config_original" ]; then
+        config=$(read_raw_config) || return 1
+        save_once device_config_original "$config" || return 1
     fi
     updated=$(printf '%s\n' "$current" | merge_aod disable_aod=false) || return 1
     write_policy "$updated" || return 1
+    if [ "$config_override" != false ]; then
+        write_override false || return 1
+    fi
+    # The ordinary flag notifies BatterySaverPolicy's DeviceConfig listener.
+    # The local override keeps subsequent server updates from changing it.
+    write_raw_config false || return 1
     say "AOD allowed during Battery Saver."
 }
 
@@ -109,6 +179,42 @@ restore_policy() {
     say "Previous AOD policy restored; other Battery Saver settings preserved."
 }
 
+restore_device_config() {
+    override_restored=
+    if [ -f "$STATE_DIR/device_config_override_original" ]; then
+        saved_override=$(cat "$STATE_DIR/device_config_override_original") || return 1
+        current_override=$(read_override) || return 1
+        if [ "$current_override" = false ] && [ "$saved_override" != false ]; then
+            write_override "$saved_override" || return 1
+            override_restored=1
+            say 'Previous Battery Saver DeviceConfig override restored.'
+        elif [ "$current_override" != "$saved_override" ]; then
+            say 'Battery Saver DeviceConfig override changed independently; leaving it untouched.'
+        fi
+    fi
+
+    current_raw=$(read_raw_config) || return 1
+    if [ -f "$STATE_DIR/device_config_original" ]; then
+        saved_raw=$(cat "$STATE_DIR/device_config_original") || return 1
+        if [ "$current_raw" = false ] && [ "$saved_raw" != false ]; then
+            write_raw_config "$saved_raw" || return 1
+            say 'Previous Battery Saver DeviceConfig value restored.'
+            return 0
+        fi
+        if [ "$current_raw" != "$saved_raw" ]; then
+            say 'Battery Saver DeviceConfig value changed independently; leaving it untouched.'
+        fi
+    fi
+
+    # Changing the override alone does not notify BatterySaverPolicy.
+    if [ -n "$override_restored" ]; then
+        if [ "$current_raw" = null ]; then
+            write_raw_config false || return 1
+        fi
+        write_raw_config "$current_raw" || return 1
+    fi
+}
+
 restore_and_clean() {
-    restore_policy && rm -rf "$STATE_DIR"
+    restore_policy && restore_device_config && rm -rf "$STATE_DIR"
 }

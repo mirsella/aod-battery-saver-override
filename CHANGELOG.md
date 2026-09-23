@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Keep `disable_aod=false` in DeviceConfig and as a local override. The ordinary value notifies Android's policy listener; the override survives server updates.
+- Restore the original DeviceConfig value and override on Action or uninstall, including when upgrading from 0.2.0.
+
 ## 0.2.0
 
 - Replace the Xposed APK with a script-only KernelSU / Magisk module.
